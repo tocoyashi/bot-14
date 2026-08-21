@@ -23,7 +23,7 @@ CHANNEL_ID = os.environ.get('CHANNEL_ID')
 
 TIMEFRAME = '15m'
 HTF_TIMEFRAME = '1h'
-TOP_N_COINS = 35
+TOP_N_COINS = 25
 LEVERAGE = 10
 
 # Targets — Updated percentages
@@ -147,6 +147,7 @@ def build_signal_message(symbol, direction, entry_price, sl_price):
 
 COIN: ${pair}
 Direction: {direction}
+Entry: {_fmt(entry_price)}
  • • • • • • • • • • • • • • • • • • • • • • • • • • • •
 Target 1: {_fmt(tp1)}☑️
 Target 2: {_fmt(tp2)}☑️
