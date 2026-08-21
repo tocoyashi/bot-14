@@ -23,15 +23,15 @@ CHANNEL_ID = os.environ.get('CHANNEL_ID')
 
 TIMEFRAME = '15m'
 HTF_TIMEFRAME = '1h'
-TOP_N_COINS = 25
+TOP_N_COINS = 35
 LEVERAGE = 10
 
-# Targets
-TP1_PERC = 0.80
-TP2_PERC = 1.85
-TP3_PERC = 3.00
-TP4_PERC = 4.60
-SL_PERC = 6.0
+# Targets — Updated percentages
+TP1_PERC = 0.85
+TP2_PERC = 1.98
+TP3_PERC = 3.50
+TP4_PERC = 5.50
+SL_PERC = 4.50
 
 # Filters — Balanced / Non-Strict
 TREND_FILTER = True
@@ -143,27 +143,21 @@ def build_signal_message(symbol, direction, entry_price, sl_price):
         tp3 = entry_price * (1 - TP3_PERC / 100)
         tp4 = entry_price * (1 - TP4_PERC / 100)
 
-    return f"""✅Signal Alert: #{pair}
+    return f"""NEW SIGNAL💡
 
+COIN: ${pair}
 Direction: {direction}
-Leverage: {LEVERAGE}x 
+ • • • • • • • • • • • • • • • • • • • • • • • • • • • •
+Target 1: {_fmt(tp1)}☑️
+Target 2: {_fmt(tp2)}☑️
+Target 3: {_fmt(tp3)}☑️
+Target 4: {_fmt(tp4)}☑️
 
-Entry: {_fmt(entry_price)}
+STOP LOSS: {_fmt(sl_price)}
 
-Targets:
-1- {_fmt(tp1)}
-2- {_fmt(tp2)}
-3- {_fmt(tp3)}
-4- {_fmt(tp4)}
-
-🚫 Stop Loss: {_fmt(sl_price)} ({SL_PERC}%)
-
-━━━━━━━━━━━━━━━
-🤖 AutoTrade:
-
-No need to monitor the charts! Our Bot executes every trade in real time
-Just connect and let the bot follow
-Perfect for beginners or busy traders.
+LEVERAGE: {LEVERAGE}x 
+ • • • • • • • • • • • • • • • • • • • • • • • • • • • •
+Crypto Hunter©
 
 L E A K E D B Y: @BULLS_SIGNALS"""
 
