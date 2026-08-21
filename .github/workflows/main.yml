@@ -1,0 +1,53 @@
+name: Squeeze MEXC Bot
+
+on:
+  schedule:
+    # كل 15 دقيقة (يمكنك تغييرها)
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Restore cooldown cache
+        uses: actions/cache@v4
+        with:
+          path: cooldown.json
+          key: cooldown-${{ github.run_id }}
+          restore-keys: |
+            cooldown-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Trading Bot
+        env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          CHANNEL_ID: ${{ secrets.CHANNEL_ID }}
+        run: python bot.py
+
+      - name: Save cooldown for next run
+        uses: actions/cache@v4
+        with:
+          path: cooldown.json
+          key: cooldown-${{ github.run_id }}-${{ github.run_attempt }}
