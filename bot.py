@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-MEXC Trading Signal Bot — GitHub Actions Edition
-Single-run mode: Scans once, sends signals, exits.
+MEXC Trading Signal Bot — Enhanced Precision Edition
+Added: HTF Trend Alignment | Market Structure | Volume Profile | Correlation Filter
 """
 
 import os
@@ -23,17 +23,18 @@ CHANNEL_ID = os.environ.get('CHANNEL_ID')
 
 TIMEFRAME = '15m'
 HTF_TIMEFRAME = '1h'
+STRUCTURE_TIMEFRAME = '4h'      # NEW: فريم أعلى للهيكل السعري
 TOP_N_COINS = 25
-LEVERAGE = 10
+LEVERAGE = 12
 
-# Targets — Updated percentages
+# Targets
 TP1_PERC = 0.85
 TP2_PERC = 1.98
 TP3_PERC = 3.50
 TP4_PERC = 5.50
 SL_PERC = 4.50
 
-# Filters — Balanced / Non-Strict
+# Filters — Enhanced
 TREND_FILTER = True
 SQUEEZE_DURATION_FILTER = False
 MIN_SQUEEZE_BARS = 1
@@ -42,22 +43,39 @@ FILTER_ATR_MINIMUM = True
 ATR_MIN_PERCENT = 0.15
 RSI_FILTER = True
 RSI_PERIOD = 14
-RSI_LONG_MAX = 75
-RSI_SHORT_MIN = 25
+RSI_LONG_MAX = 70              # ↓ أضيق (كان 75)
+RSI_SHORT_MIN = 30             # ↑ أضيق (كان 25)
 VOLUME_FILTER = True
-VOL_MIN_RATIO = 0.8
+VOL_MIN_RATIO = 1.0            # ↑ أعلى (كان 0.8)
 ADX_FILTER = True
 ADX_PERIOD = 14
-ADX_MIN = 12
+ADX_MIN = 18                   # ↑ أعلى (كان 12)
 ALLOW_MOMENTUM_BREAK = True
 MOM_BREAK_THRESHOLD = 1.0
 
-# Soft Filters
+# NEW: Advanced Filters
 HTF_FILTER = True
-HTF_MAX_DEVIATION = 3.0
+HTF_MAX_DEVIATION = 2.5        # ↓ أضيق (كان 3.0)
+HTF_TREND_ALIGNMENT = True     # NEW: الاتجاه على 4h يجب أن يتوافق
 CONFIRMATION_CANDLE = True
-CONFIRM_MAX_OPPOSITE = 0.8
+CONFIRM_MAX_OPPOSITE = 0.6     # ↓ أضيق (كان 0.8)
 NEWS_TIME_FILTER = True
+
+# NEW: Structure Filter — يتجنب الدخول عند المقاومة/الدعم القوي
+STRUCTURE_FILTER = True
+STRUCTURE_LOOKBACK = 20        # عدد الشمعات للبحث عن swing high/low
+
+# NEW: Volume Profile — يتطلب حجم أعلى من المتوسط
+VOL_PROFILE_FILTER = True
+VOL_PROFILE_BARS = 50
+VOL_PROFILE_MIN_PERCENTILE = 60  # الحجم يجب أن يكون فوق الـ 60th percentile
+
+# NEW: Correlation Filter — لا إشارات لعملات مترابطة في نفس الاتجاه
+CORRELATION_FILTER = True
+CORRELATION_THRESHOLD = 0.85     # إذا correlation > 0.85، نرسل واحدة فقط
+
+# NEW: Session Filter — تجنب نهاية الجلسات
+SESSION_FILTER = True
 
 COOLDOWN_FILE = Path('cooldown.json')
 COOLDOWN_HOURS = 6
@@ -84,21 +102,30 @@ def _fmt(price):
 
 
 def is_high_impact_time():
-    """Soft news filter — only major events (NFP, FOMC windows)."""
     if not NEWS_TIME_FILTER:
         return False
     now = datetime.utcnow()
     weekday = now.weekday()
     t = now.time()
-
-    # NFP: Friday ~12:30-13:30 UTC
     if weekday == 4 and dt_time(12, 0) <= t <= dt_time(13, 45):
         return True
-    # FOMC: Wednesday ~18:00-19:45 UTC
     if weekday == 2 and dt_time(18, 0) <= t <= dt_time(19, 45):
         return True
-    # CPI: Tue/Wed ~12:30-13:45 UTC
     if weekday in (1, 2) and dt_time(12, 30) <= t <= dt_time(13, 45):
+        return True
+    return False
+
+
+def is_bad_session_time():
+    """NEW: Avoid signals at session close / low liquidity windows."""
+    if not SESSION_FILTER:
+        return False
+    now = datetime.utcnow()
+    t = now.time()
+    # Avoid: 21:30-22:30 UTC (NYSE close), 04:00-05:00 UTC (Asia low liquidity)
+    if dt_time(21, 30) <= t <= dt_time(22, 30):
+        return True
+    if dt_time(4, 0) <= t <= dt_time(5, 0):
         return True
     return False
 
@@ -130,7 +157,22 @@ def calculate_rsi(close, period=14):
     return 100 - (100 / (1 + avg_gain / avg_loss))
 
 
-def build_signal_message(symbol, direction, entry_price, sl_price):
+# NEW: Detect swing highs/lows for structure
+def find_nearest_structure(df, direction, lookback=20):
+    """Find nearest swing high (for SHORT) or swing low (for LONG).
+    Returns distance % from current price to structure level."""
+    recent = df.tail(lookback)
+    if direction == "LONG":
+        # Nearest swing low = lowest low in lookback
+        level = recent['low'].min()
+        return level
+    else:
+        # Nearest swing high = highest high in lookback
+        level = recent['high'].max()
+        return level
+
+
+def build_signal_message(symbol, direction, entry_price, sl_price, confidence_score):
     pair = symbol.replace('/', '')
     if direction == "LONG":
         tp1 = entry_price * (1 + TP1_PERC / 100)
@@ -143,10 +185,19 @@ def build_signal_message(symbol, direction, entry_price, sl_price):
         tp3 = entry_price * (1 - TP3_PERC / 100)
         tp4 = entry_price * (1 - TP4_PERC / 100)
 
+    # NEW: Quality badge based on confidence score
+    if confidence_score >= 85:
+        quality = "🟢 PREMIUM"
+    elif confidence_score >= 70:
+        quality = "🟡 STANDARD"
+    else:
+        quality = "🟠 BASIC"
+
     return f"""NEW SIGNAL💡
 
 COIN: ${pair}
 Direction: {direction}
+Quality: {quality} ({confidence_score}/100)
 Entry: {_fmt(entry_price)}
  • • • • • • • • • • • • • • • • • • • • • • • • • • • •
 Target 1: {_fmt(tp1)}☑️
@@ -154,7 +205,7 @@ Target 2: {_fmt(tp2)}☑️
 Target 3: {_fmt(tp3)}☑️
 Target 4: {_fmt(tp4)}☑️
 
-STOP LOSS: {_fmt(sl_price)}
+🚫 Stop Loss: {_fmt(sl_price)}
 
 LEVERAGE: {LEVERAGE}x 
  • • • • • • • • • • • • • • • • • • • • • • • • • • • •
@@ -193,11 +244,10 @@ def get_mexc_data(symbol, timeframe, limit=151):
     return df
 
 
-def get_htf_ema20(symbol):
-    """Fetch 1h EMA20 for HTF filter. Returns EMA value or None."""
+def get_htf_ema20(symbol, tf='1h'):
     try:
         exchange = ccxt.mexc({'enableRateLimit': True})
-        ohlcv = exchange.fetch_ohlcv(symbol, HTF_TIMEFRAME, limit=30)
+        ohlcv = exchange.fetch_ohlcv(symbol, tf, limit=30)
         if len(ohlcv) < 20:
             return None
         df = pd.DataFrame(ohlcv, columns=['t', 'o', 'h', 'l', 'c', 'v'])
@@ -205,6 +255,26 @@ def get_htf_ema20(symbol):
         return ema20
     except Exception:
         return None
+
+
+# NEW: Get 4h trend alignment
+def get_htf_trend(symbol):
+    """Returns +1 for bullish, -1 for bearish, 0 for neutral on 4h."""
+    try:
+        exchange = ccxt.mexc({'enableRateLimit': True})
+        ohlcv = exchange.fetch_ohlcv(symbol, STRUCTURE_TIMEFRAME, limit=50)
+        if len(ohlcv) < 50:
+            return 0
+        df = pd.DataFrame(ohlcv, columns=['t', 'o', 'h', 'l', 'c', 'v'])
+        ema20 = df['c'].ewm(span=20, adjust=False).mean().iloc[-1]
+        ema50 = df['c'].ewm(span=50, adjust=False).mean().iloc[-1]
+        if ema20 > ema50 * 1.01:
+            return 1
+        elif ema20 < ema50 * 0.99:
+            return -1
+        return 0
+    except Exception:
+        return 0
 
 
 def get_top_mexc_coins(limit=25):
@@ -223,6 +293,30 @@ def get_top_mexc_coins(limit=25):
     except Exception as e:
         logger.error(f"Error fetching coins: {e}")
         return []
+
+
+# NEW: Correlation checker
+def get_correlation_matrix(symbols, timeframe='15m', limit=50):
+    """Returns dict of correlations between symbols based on close prices."""
+    prices = {}
+    exchange = ccxt.mexc({'enableRateLimit': True})
+    for sym in symbols:
+        try:
+            ohlcv = exchange.fetch_ohlcv(sym, timeframe, limit=limit)
+            df = pd.DataFrame(ohlcv, columns=['t', 'o', 'h', 'l', 'c', 'v'])
+            prices[sym] = df['c'].values
+        except Exception:
+            continue
+    corr = {}
+    syms = list(prices.keys())
+    for i in range(len(syms)):
+        for j in range(i+1, len(syms)):
+            s1, s2 = syms[i], syms[j]
+            if len(prices[s1]) == len(prices[s2]) and len(prices[s1]) > 10:
+                c = np.corrcoef(prices[s1], prices[s2])[0, 1]
+                if not np.isnan(c):
+                    corr[(s1, s2)] = c
+    return corr
 
 
 # ================= Cooldown =================
@@ -304,6 +398,9 @@ class SignalEngine:
         ema_trend = data['close'].ewm(span=50, adjust=False).mean()
         adx = calculate_adx(data, ADX_PERIOD)
 
+        # NEW: Volume percentile
+        vol_percentile = data['volume'].rolling(window=VOL_PROFILE_BARS).quantile(VOL_PROFILE_MIN_PERCENTILE/100)
+
         data['squeeze_on'] = squeeze_on
         data['squeeze_duration'] = squeeze_duration
         data['momentum'] = momentum
@@ -317,9 +414,10 @@ class SignalEngine:
         data['vol_sma'] = vol_sma
         data['ema_trend'] = ema_trend
         data['adx'] = adx
+        data['vol_percentile'] = vol_percentile
         return data
 
-    def generate_signal(self, df, symbol=""):
+    def generate_signal(self, df, symbol="", htf_trend=0, structure_level=None):
         data = self.analyze(df)
         data['signal'] = 0
 
@@ -327,13 +425,14 @@ class SignalEngine:
         mom_inc_safe = data['momentum_increasing'].fillna(False).astype(bool)
 
         if len(data) < 4:
-            return None, "Not enough data"
+            return None, "Not enough data", 0
 
         signal_candle = data.iloc[-3]
         confirm_candle = data.iloc[-2]
 
         signal_type = None
         reason = "No signal"
+        confidence = 50  # Base score
 
         # MODE A: Squeeze Release
         squeeze_release = (squeeze_on_safe.shift(1) == True) & (squeeze_on_safe == False)
@@ -345,67 +444,110 @@ class SignalEngine:
             if is_long or is_short:
                 signal_type = 1 if is_long else -1
                 reason = "Squeeze Release"
+                confidence += 15
 
         # MODE B: Momentum Break
         elif ALLOW_MOMENTUM_BREAK:
             if signal_candle['mom_break_long'] and mom_inc_safe.iloc[-3]:
                 signal_type = 1
                 reason = "Momentum Break LONG"
+                confidence += 10
             elif signal_candle['mom_break_short'] and not mom_inc_safe.iloc[-3]:
                 signal_type = -1
                 reason = "Momentum Break SHORT"
+                confidence += 10
             else:
                 reason = "No squeeze release + No momentum break"
         else:
             reason = "No squeeze release"
 
         if signal_type is None:
-            return None, reason
+            return None, reason, 0
 
         direction = "LONG" if signal_type == 1 else "SHORT"
+
+        # NEW: HTF Trend Alignment (4h)
+        if HTF_TREND_ALIGNMENT:
+            if direction == "LONG" and htf_trend == -1:
+                return None, f"{reason} → HTF 4h bearish", 0
+            if direction == "SHORT" and htf_trend == 1:
+                return None, f"{reason} → HTF 4h bullish", 0
+            if htf_trend != 0:
+                confidence += 10  # Trend aligned
 
         # Soft Filter 1: Confirmation Candle
         if CONFIRMATION_CANDLE:
             if direction == "LONG":
                 change = (confirm_candle['close'] - confirm_candle['open']) / confirm_candle['open'] * 100
                 if change < -CONFIRM_MAX_OPPOSITE:
-                    return None, f"{reason} → Confirm candle bearish ({change:.2f}%)"
+                    return None, f"{reason} → Confirm candle bearish ({change:.2f}%)", 0
             else:
                 change = (confirm_candle['close'] - confirm_candle['open']) / confirm_candle['open'] * 100
                 if change > CONFIRM_MAX_OPPOSITE:
-                    return None, f"{reason} → Confirm candle bullish ({change:.2f}%)"
+                    return None, f"{reason} → Confirm candle bullish ({change:.2f}%)", 0
 
-        # Soft Filter 2: HTF EMA20
+        # Soft Filter 2: HTF EMA20 (1h)
         if HTF_FILTER:
-            htf_ema = get_htf_ema20(symbol)
+            htf_ema = get_htf_ema20(symbol, HTF_TIMEFRAME)
             if htf_ema is not None:
                 diff_pct = (signal_candle['close'] - htf_ema) / htf_ema * 100
                 if direction == "LONG" and diff_pct < -HTF_MAX_DEVIATION:
-                    return None, f"{reason} → HTF too bearish ({diff_pct:.1f}%)"
+                    return None, f"{reason} → HTF too bearish ({diff_pct:.1f}%)", 0
                 if direction == "SHORT" and diff_pct > HTF_MAX_DEVIATION:
-                    return None, f"{reason} → HTF too bullish ({diff_pct:.1f}%)"
+                    return None, f"{reason} → HTF too bullish ({diff_pct:.1f}%)", 0
 
-        # Original Filters
+        # NEW: Structure Filter — avoid buying at resistance / selling at support
+        if STRUCTURE_FILTER and structure_level is not None:
+            if direction == "LONG":
+                # Price should be above structure low (not buying into support from above)
+                dist_to_struct = (signal_candle['close'] - structure_level) / signal_candle['close'] * 100
+                if dist_to_struct < 0.5:  # Too close to support
+                    return None, f"{reason} → Too close to structure support ({dist_to_struct:.2f}%)", 0
+            else:
+                dist_to_struct = (structure_level - signal_candle['close']) / signal_candle['close'] * 100
+                if dist_to_struct < 0.5:  # Too close to resistance
+                    return None, f"{reason} → Too close to structure resistance ({dist_to_struct:.2f}%)", 0
+
+        # Original Filters with confidence scoring
         if FILTER_MOMENTUM_STRENGTH and not signal_candle['momentum_strong']:
-            return None, f"{reason} → Momentum too weak"
+            return None, f"{reason} → Momentum too weak", 0
+        else:
+            confidence += 5
+
         if TREND_FILTER:
             if direction == "LONG" and signal_candle['close'] <= signal_candle['ema_trend']:
-                return None, f"{reason} → Price below EMA50"
+                return None, f"{reason} → Price below EMA50", 0
             if direction == "SHORT" and signal_candle['close'] >= signal_candle['ema_trend']:
-                return None, f"{reason} → Price above EMA50"
+                return None, f"{reason} → Price above EMA50", 0
+            confidence += 5
+
         if FILTER_ATR_MINIMUM and signal_candle['atr_pct'] < ATR_MIN_PERCENT:
-            return None, f"{reason} → ATR% {signal_candle['atr_pct']:.3f} < {ATR_MIN_PERCENT}"
+            return None, f"{reason} → ATR% {signal_candle['atr_pct']:.3f} < {ATR_MIN_PERCENT}", 0
+        else:
+            confidence += 5
+
         if RSI_FILTER:
             if direction == "LONG" and signal_candle['rsi'] > RSI_LONG_MAX:
-                return None, f"{reason} → RSI {signal_candle['rsi']:.1f} > {RSI_LONG_MAX}"
+                return None, f"{reason} → RSI {signal_candle['rsi']:.1f} > {RSI_LONG_MAX}", 0
             if direction == "SHORT" and signal_candle['rsi'] < RSI_SHORT_MIN:
-                return None, f"{reason} → RSI {signal_candle['rsi']:.1f} < {RSI_SHORT_MIN}"
+                return None, f"{reason} → RSI {signal_candle['rsi']:.1f} < {RSI_SHORT_MIN}", 0
+            confidence += 5
+
         if VOLUME_FILTER:
             vol_ratio = signal_candle['volume'] / signal_candle['vol_sma'] if signal_candle['vol_sma'] > 0 else 0
             if vol_ratio < VOL_MIN_RATIO:
-                return None, f"{reason} → Volume {vol_ratio:.2f}x < {VOL_MIN_RATIO}x"
+                return None, f"{reason} → Volume {vol_ratio:.2f}x < {VOL_MIN_RATIO}x", 0
+            confidence += 5
+
+        if VOL_PROFILE_FILTER:
+            if signal_candle['volume'] < signal_candle['vol_percentile']:
+                return None, f"{reason} → Volume below {VOL_PROFILE_MIN_PERCENTILE}th percentile", 0
+            confidence += 5
+
         if ADX_FILTER and signal_candle['adx'] < ADX_MIN:
-            return None, f"{reason} → ADX {signal_candle['adx']:.1f} < {ADX_MIN}"
+            return None, f"{reason} → ADX {signal_candle['adx']:.1f} < {ADX_MIN}", 0
+        else:
+            confidence += 5
 
         entry = signal_candle['close']
         sl = entry * (1 - SL_PERC/100) if direction == "LONG" else entry * (1 + SL_PERC/100)
@@ -415,8 +557,9 @@ class SignalEngine:
             'direction': direction,
             'entry': entry,
             'sl': sl,
-            'reason': reason
-        }, "PASS"
+            'reason': reason,
+            'confidence': min(100, confidence)
+        }, "PASS", min(100, confidence)
 
 
 # ================= Telegram (Single-run mode) =================
@@ -436,12 +579,15 @@ async def scan_and_send():
     if is_high_impact_time():
         logger.info("High-impact news time — skipping scan")
         return
+    if is_bad_session_time():
+        logger.info("Low liquidity session — skipping scan")
+        return
 
     if not BOT_TOKEN or not CHANNEL_ID:
         logger.error("BOT_TOKEN and CHANNEL_ID must be set!")
         return
 
-    logger.info("Starting signal scan...")
+    logger.info("Starting ENHANCED signal scan...")
     bot = Bot(token=BOT_TOKEN)
 
     coins = get_top_mexc_coins(TOP_N_COINS)
@@ -449,30 +595,80 @@ async def scan_and_send():
         logger.error("Could not fetch coins from MEXC.")
         return
 
+    # NEW: Pre-compute correlations
+    correlations = {}
+    if CORRELATION_FILTER and len(coins) > 1:
+        logger.info("Computing correlation matrix...")
+        correlations = get_correlation_matrix(coins[:15])  # Top 15 only for speed
+
+    # NEW: Pre-compute HTF trends
+    logger.info("Fetching HTF trends (4h)...")
+    htf_trends = {}
+    for sym in coins:
+        htf_trends[sym] = get_htf_trend(sym)
+        await asyncio.sleep(0.3)
+
     cooldown_data = load_cooldown()
     engine = SignalEngine()
     sent = 0
     rejected = {}
+    sent_symbols = []  # For correlation deduplication
 
     for symbol in coins:
         try:
             if is_on_cooldown(symbol, cooldown_data):
                 continue
 
+            # NEW: Correlation skip
+            if CORRELATION_FILTER:
+                skip_corr = False
+                for sent_sym in sent_symbols:
+                    key = (min(symbol, sent_sym), max(symbol, sent_sym))
+                    if key in correlations and abs(correlations[key]) > CORRELATION_THRESHOLD:
+                        logger.info(f"  ⏭️ {symbol}: Correlated with {sent_sym} ({correlations[key]:.2f})")
+                        skip_corr = True
+                        break
+                if skip_corr:
+                    continue
+
             df = get_mexc_data(symbol, TIMEFRAME, limit=151)
-            signal, reason = engine.generate_signal(df, symbol)
+
+            # NEW: Get structure level
+            struct_level = None
+            if STRUCTURE_FILTER:
+                try:
+                    struct_df = get_mexc_data(symbol, TIMEFRAME, limit=STRUCTURE_LOOKBACK + 5)
+                    struct_level = find_nearest_structure(struct_df, "LONG", STRUCTURE_LOOKBACK)
+                except Exception:
+                    pass
+
+            signal, reason, conf = engine.generate_signal(
+                df, symbol,
+                htf_trend=htf_trends.get(symbol, 0),
+                structure_level=struct_level
+            )
 
             if signal is None:
                 rejected[symbol] = reason
                 logger.info(f"  ❌ {symbol}: {reason}")
                 continue
 
+            # NEW: Minimum confidence threshold
+            if signal['confidence'] < 60:
+                logger.info(f"  🟡 {symbol}: Confidence too low ({signal['confidence']})")
+                rejected[symbol] = f"Low confidence ({signal['confidence']})"
+                continue
+
             cooldown_data[symbol] = datetime.now().isoformat()
             sent += 1
+            sent_symbols.append(symbol)
 
-            msg = build_signal_message(signal['symbol'], signal['direction'], signal['entry'], signal['sl'])
+            msg = build_signal_message(
+                signal['symbol'], signal['direction'],
+                signal['entry'], signal['sl'], signal['confidence']
+            )
             await send_alert(bot, msg)
-            logger.info(f"  ✅ {symbol}: {signal['direction']} — {signal['reason']}")
+            logger.info(f"  ✅ {symbol}: {signal['direction']} — {signal['reason']} (Conf: {signal['confidence']})")
 
         except Exception as e:
             logger.warning(f"  ⚠️ {symbol}: {e}")
