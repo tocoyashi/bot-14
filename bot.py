@@ -24,7 +24,7 @@ CHANNEL_ID = os.environ.get('CHANNEL_ID')
 TIMEFRAME = '15m'
 HTF_TIMEFRAME = '4h'           # فريم واحد للاتجاه الكبير
 TOP_N_COINS = 25
-LEVERAGE = 12
+LEVERAGE = 10
 
 # Targets
 TP1_PERC = 0.85
@@ -66,7 +66,7 @@ MAX_SPREAD_PCT = 0.15          # 0.15% سقف السبريد
 
 # NEW: Wick Filter — يتجنب الشموع بظل طويل عكسي
 WICK_FILTER = True
-MAX_WICK_RATIO = 2.0           # الظل العكسي يجب ألا يتجاوز 2x جسم الشمعة
+MAX_WICK_RATIO = 4.0           # الظل العكسي يجب ألا يتجاوز 4x جسم الشمعة (crypto-friendly)
 
 # Structure
 STRUCTURE_FILTER = True
@@ -411,7 +411,7 @@ class SignalEngine:
         if SPREAD_FILTER and spread_pct > MAX_SPREAD_PCT:
             return None, f"Spread too high ({spread_pct:.3f}%)", 0
 
-        # NEW: Wick Filter on signal candle
+        # NEW: Wick Filter — checks OPPOSITE wick only (direction-aware)
         if WICK_FILTER:
             body = abs(signal_candle['close'] - signal_candle['open'])
             if body > 0:
@@ -421,11 +421,13 @@ class SignalEngine:
                 else:  # red candle
                     upper_wick = signal_candle['high'] - signal_candle['open']
                     lower_wick = signal_candle['close'] - signal_candle['low']
-                # Reject if opposite wick is too long
-                # (simplified: max wick vs body)
-                max_wick = max(upper_wick, lower_wick)
-                if max_wick / body > MAX_WICK_RATIO:
-                    return None, f"Wick too long ({max_wick/body:.1f}x body)", 0
+
+                # For LONG: reject if lower wick is too long (rejection from below)
+                # For SHORT: reject if upper wick is too long (rejection from above)
+                if direction == "LONG" and lower_wick / body > MAX_WICK_RATIO:
+                    return None, f"Lower wick too long ({lower_wick/body:.1f}x body)", 0
+                if direction == "SHORT" and upper_wick / body > MAX_WICK_RATIO:
+                    return None, f"Upper wick too long ({upper_wick/body:.1f}x body)", 0
 
         signal_type = None
         reason = "No signal"
