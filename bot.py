@@ -25,6 +25,10 @@ SYMBOLS = [
 
 SEPARATOR = " • • • • • • • • • • • • • • • • • • • • • • • • • • • • "
 
+# ─── إعدادات TP و SL ─────────────────────────────────────────
+TP1_PERCENT = 0.009    # الهدف الأول ثابت 0.9%
+MAX_SL_PERCENT = 0.03  # وقف الخسارة الأقصى 3%
+
 
 def get_decimals(price):
     if price > 100:
@@ -39,13 +43,13 @@ def get_decimals(price):
 
 def get_quality_label(score):
     if score >= 85:
-        return "PREMIUM", "\U0001f7e2"      # green circle
+        return "PREMIUM", "\U0001f7e2"
     elif score >= 70:
-        return "STRONG", "\U0001f7e1"       # yellow circle
+        return "STRONG", "\U0001f7e1"
     elif score >= 55:
-        return "MODERATE", "\U0001f7e0"     # orange circle
+        return "MODERATE", "\U0001f7e0"
     else:
-        return "BASIC", "\u26aa"             # white circle
+        return "BASIC", "\u26aa"
 
 
 def calculate_quality_score(
@@ -56,13 +60,11 @@ def calculate_quality_score(
     trend_4h_aligned: bool,
 ) -> int:
     """حساب درجة جودة الإشارة من 100
-    ─────────────────────────────────
     • تقاطع EMA          → 25 نقطة
     • تأكيد MACD         → 20 نقطة
     • تأكيد الحجم        → 20 نقطة
     • RSI في نطاق صحي    → 15 نقطة
     • توافق 4H           → 20 نقطة
-    ─────────────────────────────────
     """
     score = 0
     if ema_cross:
@@ -81,14 +83,9 @@ def calculate_quality_score(
 def send_crypto_signal(coin_name, direction, quality_score, entry, tp1, tp2, tp3, tp4, sl, rr_ratio):
     """إرسال إشارة بصيغتها الجديدة"""
 
-    # تحويل اسم الزوج إلى صيغة $SYMBOLUSDT
     coin_display = "$" + coin_name.replace("/", "")
-
-    # تسمية الجودة
     quality_label, quality_emoji = get_quality_label(quality_score)
     quality_text = f"{quality_emoji} {quality_label} ({quality_score}/100)"
-
-    # خط فاصل من نقاط
     sep = SEPARATOR
 
     text = f"""NEW SIGNAL\U0001f4a1
@@ -130,10 +127,8 @@ L E A K E D B Y: @BULLS_SIGNALS"""
 
 def check_4h_trend(exchange, symbol, direction):
     """ترشيح الاتجاه العام على إطار 4 ساعات
-    ───────────────────────────────────────
     صاعد  → السعر فوق EMA50 و EMA50 فوق EMA200
     هابط  → السعر تحت EMA50 و EMA50 تحت EMA200
-    ───────────────────────────────────────
     """
     try:
         ohlcv_4h = exchange.fetch_ohlcv(symbol, "4h", limit=100)
@@ -201,7 +196,7 @@ def analyze_and_trade():
             macd_buy = (curr_macd > 0) and (curr_macd > prev_macd)
             macd_sell = (curr_macd < 0) and (curr_macd < prev_macd)
 
-            # ── ATR (للـ SL و TP الديناميكي) ──────────────
+            # ── ATR ───────────────────────────────────────
             df["atr"] = ta.volatility.average_true_range(
                 df["high"], df["low"], df["close"], window=14
             )
@@ -215,7 +210,6 @@ def analyze_and_trade():
             # ─────────────────────────────────────────────────
             if (ema_buy or macd_buy) and volume_confirm:
 
-                # فلتر 4H: يجب أن يكون الاتجاه العام صاعداً
                 trend_ok = check_4h_trend(exchange, symbol, "LONG")
                 if not trend_ok:
                     print(f"\u26a0\ufe0f {symbol} BUY skipped \u2014 4H trend NOT bullish")
@@ -225,20 +219,25 @@ def analyze_and_trade():
                     print(f"\u26a0\ufe0f {symbol} BUY skipped \u2014 RSI {current_rsi:.1f} not safe")
                     continue
 
-                # ── حساب جودة الإشارة ──
                 score = calculate_quality_score(
                     ema_cross=ema_buy,
                     macd_conf=macd_buy,
-                    volume_conf=volume_confirm,
+                    volume_confirm=volume_confirm,
                     rsi_conf=True,
                     trend_4h_aligned=True,
                 )
 
                 entry = round(current_close, decimals)
-                sl = round(current_close - (atr_value * 2.0), decimals)
+
+                # SL: الأصغر بين (ATR×2) و (3% من السعر)
+                atr_sl_distance = atr_value * 2.0
+                max_sl_distance = current_close * MAX_SL_PERCENT
+                sl_distance = min(atr_sl_distance, max_sl_distance)
+                sl = round(current_close - sl_distance, decimals)
                 risk = entry - sl
 
-                tp1 = round(entry + (risk * 1.5), decimals)
+                # TP1 ثابت 0.9% | باقي الأهداف ديناميكية
+                tp1 = round(entry * (1 + TP1_PERCENT), decimals)
                 tp2 = round(entry + (risk * 2.5), decimals)
                 tp3 = round(entry + (risk * 4.0), decimals)
                 tp4 = round(entry + (risk * 5.5), decimals)
@@ -257,7 +256,6 @@ def analyze_and_trade():
             # ─────────────────────────────────────────────────
             elif (ema_sell or macd_sell) and volume_confirm:
 
-                # فلتر 4H: يجب أن يكون الاتجاه العام هابطاً
                 trend_ok = check_4h_trend(exchange, symbol, "SHORT")
                 if not trend_ok:
                     print(f"\u26a0\ufe0f {symbol} SELL skipped \u2014 4H trend NOT bearish")
@@ -267,20 +265,25 @@ def analyze_and_trade():
                     print(f"\u26a0\ufe0f {symbol} SELL skipped \u2014 RSI {current_rsi:.1f} not safe")
                     continue
 
-                # ── حساب جودة الإشارة ──
                 score = calculate_quality_score(
                     ema_cross=ema_sell,
                     macd_conf=macd_sell,
-                    volume_conf=volume_confirm,
+                    volume_confirm=volume_confirm,
                     rsi_conf=True,
                     trend_4h_aligned=True,
                 )
 
                 entry = round(current_close, decimals)
-                sl = round(current_close + (atr_value * 2.0), decimals)
+
+                # SL: الأصغر بين (ATR×2) و (3% من السعر)
+                atr_sl_distance = atr_value * 2.0
+                max_sl_distance = current_close * MAX_SL_PERCENT
+                sl_distance = min(atr_sl_distance, max_sl_distance)
+                sl = round(current_close + sl_distance, decimals)
                 risk = sl - entry
 
-                tp1 = round(entry - (risk * 1.5), decimals)
+                # TP1 ثابت 0.9% | باقي الأهداف ديناميكية
+                tp1 = round(entry * (1 - TP1_PERCENT), decimals)
                 tp2 = round(entry - (risk * 2.5), decimals)
                 tp3 = round(entry - (risk * 4.0), decimals)
                 tp4 = round(entry - (risk * 5.5), decimals)
