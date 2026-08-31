@@ -13,7 +13,7 @@ BOT_TOKEN = os.environ.get("BOT_TOKEN")
 CHANNEL_ID = os.environ.get("CHANNEL_ID")
 TIMEFRAME = "15m"
 
-# قائمة بيضاء بأزواج Futures الموثوقة (تجنب العملات الصغيرة المشكوك فيها)
+# قائمة بيضاء بأزواج Futures الموثوقة
 WHITELIST = [
     "BTC/USDT", "ETH/USDT", "BNB/USDT", "SOL/USDT", "XRP/USDT",
     "ADA/USDT", "DOGE/USDT", "AVAX/USDT", "DOT/USDT", "LINK/USDT",
@@ -56,50 +56,17 @@ def format_price(price, decimals):
     """التأكد من استخدام النقطة كفاصل عشري"""
     return str(round(price, decimals))
 
-def send_cornix_signal(coin_name, direction, entry, leverage, tp1, tp2, tp3, tp4, sl):
-    """إشارة بتنسيق Cornix مع تحديد البورصات"""
-    text = f"""⚡⚡ #{coin_name} ⚡⚡
-
-Exchanges: Binance Futures, ByBit USDT
-Signal Type: Regular ({direction.capitalize()})
-Leverage: Cross ({leverage}X)
-
-Entry Zone:
-{entry}
-
-Take-Profit Targets:
-1) {tp1}
-2) {tp2}
-3) {tp3}
-4) {tp4}
-
-Stop Targets:
-1) {sl}"""
-
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-    payload = {"chat_id": CHANNEL_ID, "text": text}
+def send_signal(coin_name, direction, entry, tp1, tp2, tp3, tp4, sl):
+    """إرسال إشارة واحدة بتنسيق موحد"""
+    direction_text = "Long" if direction.lower() == "long" else "Short"
     
-    try:
-        response = requests.post(url, json=payload)
-        if response.json().get('ok'):
-            print(f"✅ Cornix signal sent for {coin_name}")
-            return True
-        else:
-            print(f"❌ Cornix error: {response.json().get('description')}")
-            return False
-    except Exception as e:
-        print(f"Network error: {e}")
-        return False
-
-def send_pretty_signal(coin_name, direction, entry, leverage, tp1, tp2, tp3, tp4, sl):
-    """إشارتك الجمالية للعرض"""
     text = f"""📝 NEW SIGNAL
 
-Pair: {coin_name}
-Direction: {direction.upper()}
+Exchanges: Binance Futures, ByBit USDT
+Signal Type: Regular ({direction_text})
 
+Pair: {coin_name}
 Entry  : {entry} 
-Leverage: {leverage}x Cross
 
 Take Profit :
 TP1: {tp1}
@@ -120,11 +87,14 @@ L E A K E D B Y: @BULLS_SIGNALS"""
     try:
         response = requests.post(url, json=payload)
         if response.json().get('ok'):
-            print(f"✅ Pretty signal sent for {coin_name}")
+            print(f"✅ Signal sent for {coin_name}")
+            return True
         else:
-            print(f"❌ Pretty error: {response.json().get('description')}")
+            print(f"❌ Telegram error: {response.json().get('description')}")
+            return False
     except Exception as e:
         print(f"Network error: {e}")
+        return False
 
 def analyze_and_trade():
     print("Starting scan (15m)...")
@@ -173,18 +143,19 @@ def analyze_and_trade():
             current_close = df['close'].iloc[-1]
             decimals = get_decimals(current_close)
             
-            # حساب الأسعار
+            # حساب الأسعار للصفقات الطويلة (LONG/BUY)
             if (ema_buy or macd_buy) and volume_confirm and rsi_not_overbought:
                 print(f"🟢 BUY candidate: {symbol} @ {current_close} | RSI: {current_rsi:.1f}")
                 
                 entry = round(current_close, decimals)
+                # ✅ TP1 تم تعديله من 1.0065 إلى 1.009 (0.9%)
                 tp1 = round(entry * 1.009, decimals)
                 tp2 = round(entry * 1.017, decimals)
                 tp3 = round(entry * 1.032, decimals)
                 tp4 = round(entry * 1.058, decimals)
                 sl = round(entry * (1 - 0.0325), decimals)
                 
-                # ✅ فحص صحة الأسعار قبل الإرسال (للـ LONG)
+                # فحص صحة الأسعار قبل الإرسال
                 if tp1 <= current_close:
                     print(f"⚠️ Skipping {symbol}: TP1 ({tp1}) <= current price ({current_close})")
                     continue
@@ -199,22 +170,22 @@ def analyze_and_trade():
                 s_tp4 = format_price(tp4, decimals)
                 s_sl = format_price(sl, decimals)
                 
-                send_cornix_signal(symbol, "long", s_entry, "15", s_tp1, s_tp2, s_tp3, s_tp4, s_sl)
-                time.sleep(1)
-                send_pretty_signal(symbol, "long", s_entry, "15", s_tp1, s_tp2, s_tp3, s_tp4, s_sl)
+                send_signal(symbol, "long", s_entry, s_tp1, s_tp2, s_tp3, s_tp4, s_sl)
                 time.sleep(2)
                 
+            # حساب الأسعار للصفقات القصيرة (SHORT/SELL)
             elif (ema_sell or macd_sell) and volume_confirm and rsi_not_oversold:
                 print(f"🔴 SELL candidate: {symbol} @ {current_close} | RSI: {current_rsi:.1f}")
                 
                 entry = round(current_close, decimals)
+                # ✅ TP1 تم تعديله من 0.9935 إلى 0.991 (0.9%)
                 tp1 = round(entry * 0.991, decimals)
                 tp2 = round(entry * 0.983, decimals)
                 tp3 = round(entry * 0.968, decimals)
                 tp4 = round(entry * 0.942, decimals)
                 sl = round(entry * (1 + 0.0325), decimals)
                 
-                # ✅ فحص صحة الأسعار قبل الإرسال (للـ SHORT)
+                # فحص صحة الأسعار قبل الإرسال
                 if tp1 >= current_close:
                     print(f"⚠️ Skipping {symbol}: TP1 ({tp1}) >= current price ({current_close})")
                     continue
@@ -229,9 +200,7 @@ def analyze_and_trade():
                 s_tp4 = format_price(tp4, decimals)
                 s_sl = format_price(sl, decimals)
                 
-                send_cornix_signal(symbol, "short", s_entry, "15", s_tp1, s_tp2, s_tp3, s_tp4, s_sl)
-                time.sleep(1)
-                send_pretty_signal(symbol, "short", s_entry, "15", s_tp1, s_tp2, s_tp3, s_tp4, s_sl)
+                send_signal(symbol, "short", s_entry, s_tp1, s_tp2, s_tp3, s_tp4, s_sl)
                 time.sleep(2)
                 
         except Exception as e:
