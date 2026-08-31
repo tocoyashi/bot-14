@@ -13,26 +13,34 @@ BOT_TOKEN = os.environ.get("BOT_TOKEN")
 CHANNEL_ID = os.environ.get("CHANNEL_ID")
 TIMEFRAME = "15m"
 
+# قائمة بيضاء بأزواج Futures الموثوقة (تجنب العملات الصغيرة المشكوك فيها)
+WHITELIST = [
+    "BTC/USDT", "ETH/USDT", "BNB/USDT", "SOL/USDT", "XRP/USDT",
+    "ADA/USDT", "DOGE/USDT", "AVAX/USDT", "DOT/USDT", "LINK/USDT",
+    "TRX/USDT", "LTC/USDT", "UNI/USDT", "ATOM/USDT", "XLM/USDT",
+    "NEAR/USDT", "APT/USDT", "SUI/USDT", "ARB/USDT", "OP/USDT",
+    "INJ/USDT", "FIL/USDT", "AAVE/USDT", "QNT/USDT", "FET/USDT",
+    "RENDER/USDT", "TIA/USDT", "SEI/USDT", "PYTH/USDT", "STRK/USDT"
+]
+
 def get_top_25_symbols(exchange):
-    """جلب أفضل 25 زوجاً على MEXC حسب حجم التداول"""
+    """جلب أفضل 25 زوجاً من القائمة البيضاء حسب حجم التداول على MEXC"""
     try:
         tickers = exchange.fetch_tickers()
-        usdt_pairs = []
+        valid_pairs = []
         
         for symbol, ticker in tickers.items():
-            if symbol.endswith("/USDT"):
+            if symbol in WHITELIST:
                 volume = ticker.get('quoteVolume', 0) or ticker.get('baseVolume', 0)
                 if volume and volume > 0:
-                    usdt_pairs.append((symbol, volume))
+                    valid_pairs.append((symbol, volume))
         
-        # ترتيب تنازلي حسب الحجم واختيار أفضل 25
-        usdt_pairs.sort(key=lambda x: x[1], reverse=True)
-        top_25 = [pair[0] for pair in usdt_pairs[:25]]
-        return top_25
+        valid_pairs.sort(key=lambda x: x[1], reverse=True)
+        return [pair[0] for pair in valid_pairs[:25]]
         
     except Exception as e:
-        print(f"Error fetching top symbols: {e}")
-        return []
+        print(f"Error fetching symbols: {e}")
+        return WHITELIST[:25]
 
 def get_decimals(price):
     if price > 100:
@@ -44,13 +52,53 @@ def get_decimals(price):
     else:
         return 8
 
-def send_crypto_signal(coin_name, direction, entry1, leverage, tp1, tp2, tp3, tp4, sl):
+def format_price(price, decimals):
+    """التأكد من استخدام النقطة كفاصل عشري"""
+    return str(round(price, decimals))
+
+def send_cornix_signal(coin_name, direction, entry, leverage, tp1, tp2, tp3, tp4, sl):
+    """إشارة بتنسيق Cornix مع تحديد البورصات"""
+    text = f"""⚡⚡ #{coin_name} ⚡⚡
+
+Exchanges: Binance Futures, ByBit USDT
+Signal Type: Regular ({direction.capitalize()})
+Leverage: Cross ({leverage}X)
+
+Entry Zone:
+{entry}
+
+Take-Profit Targets:
+1) {tp1}
+2) {tp2}
+3) {tp3}
+4) {tp4}
+
+Stop Targets:
+1) {sl}"""
+
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+    payload = {"chat_id": CHANNEL_ID, "text": text}
+    
+    try:
+        response = requests.post(url, json=payload)
+        if response.json().get('ok'):
+            print(f"✅ Cornix signal sent for {coin_name}")
+            return True
+        else:
+            print(f"❌ Cornix error: {response.json().get('description')}")
+            return False
+    except Exception as e:
+        print(f"Network error: {e}")
+        return False
+
+def send_pretty_signal(coin_name, direction, entry, leverage, tp1, tp2, tp3, tp4, sl):
+    """إشارتك الجمالية للعرض"""
     text = f"""📝 NEW SIGNAL
 
 Pair: {coin_name}
 Direction: {direction.upper()}
 
-Entry  : {entry1} 
+Entry  : {entry} 
 Leverage: {leverage}x Cross
 
 Take Profit :
@@ -67,31 +115,27 @@ Crypto Hunter©
 L E A K E D B Y: @BULLS_SIGNALS"""
 
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-    payload = {
-        "chat_id": CHANNEL_ID,
-        "text": text
-    }
+    payload = {"chat_id": CHANNEL_ID, "text": text}
     
     try:
         response = requests.post(url, json=payload)
         if response.json().get('ok'):
-            print(f"✅ Signal sent for {coin_name}")
+            print(f"✅ Pretty signal sent for {coin_name}")
         else:
-            print(f"TELEGRAM ERROR for {coin_name}: {response.json().get('description')}")
+            print(f"❌ Pretty error: {response.json().get('description')}")
     except Exception as e:
         print(f"Network error: {e}")
 
 def analyze_and_trade():
-    print("Starting scan (15m) with EMA + MACD + Vol + RSI...")
+    print("Starting scan (15m)...")
     exchange = ccxt.mexc()
     
-    # جلب أفضل 25 عملة ديناميكياً حسب حجم التداول
     SYMBOLS = get_top_25_symbols(exchange)
     if not SYMBOLS:
-        print("Could not fetch top symbols. Exiting.")
+        print("No symbols found. Exiting.")
         return
     
-    print(f"Top 25 pairs by volume: {SYMBOLS}")
+    print(f"Scanning {len(SYMBOLS)} pairs: {SYMBOLS}")
     
     for symbol in SYMBOLS:
         try:
@@ -129,38 +173,71 @@ def analyze_and_trade():
             current_close = df['close'].iloc[-1]
             decimals = get_decimals(current_close)
             
+            # حساب الأسعار
             if (ema_buy or macd_buy) and volume_confirm and rsi_not_overbought:
-                print(f"🟢 STRONG BUY on {symbol} | RSI: {current_rsi:.1f}")
+                print(f"🟢 BUY candidate: {symbol} @ {current_close} | RSI: {current_rsi:.1f}")
                 
-                entry1 = round(current_close, decimals)
+                entry = round(current_close, decimals)
+                tp1 = round(entry * 1.0065, decimals)
+                tp2 = round(entry * 1.017, decimals)
+                tp3 = round(entry * 1.032, decimals)
+                tp4 = round(entry * 1.058, decimals)
+                sl = round(entry * (1 - 0.0325), decimals)
                 
-                tp1 = round(entry1 * 1.0065, decimals)
-                tp2 = round(entry1 * 1.017, decimals)
-                tp3 = round(entry1 * 1.032, decimals)
-                tp4 = round(entry1 * 1.058, decimals)
-                sl = round(entry1 * (1 - 0.0325), decimals)  # وقف الخسارة 3.25%
+                # ✅ فحص صحة الأسعار قبل الإرسال (للـ LONG)
+                if tp1 <= current_close:
+                    print(f"⚠️ Skipping {symbol}: TP1 ({tp1}) <= current price ({current_close})")
+                    continue
+                if sl >= current_close:
+                    print(f"⚠️ Skipping {symbol}: SL ({sl}) >= current price ({current_close})")
+                    continue
                 
-                send_crypto_signal(symbol, "LONG", str(entry1), "15", str(tp1), str(tp2), str(tp3), str(tp4), str(sl))
+                s_entry = format_price(entry, decimals)
+                s_tp1 = format_price(tp1, decimals)
+                s_tp2 = format_price(tp2, decimals)
+                s_tp3 = format_price(tp3, decimals)
+                s_tp4 = format_price(tp4, decimals)
+                s_sl = format_price(sl, decimals)
+                
+                send_cornix_signal(symbol, "long", s_entry, "15", s_tp1, s_tp2, s_tp3, s_tp4, s_sl)
+                time.sleep(1)
+                send_pretty_signal(symbol, "long", s_entry, "15", s_tp1, s_tp2, s_tp3, s_tp4, s_sl)
                 time.sleep(2)
                 
             elif (ema_sell or macd_sell) and volume_confirm and rsi_not_oversold:
-                print(f"🔴 STRONG SELL on {symbol} | RSI: {current_rsi:.1f}")
+                print(f"🔴 SELL candidate: {symbol} @ {current_close} | RSI: {current_rsi:.1f}")
                 
-                entry1 = round(current_close, decimals)
+                entry = round(current_close, decimals)
+                tp1 = round(entry * 0.9935, decimals)
+                tp2 = round(entry * 0.983, decimals)
+                tp3 = round(entry * 0.968, decimals)
+                tp4 = round(entry * 0.942, decimals)
+                sl = round(entry * (1 + 0.0325), decimals)
                 
-                tp1 = round(entry1 * 0.9935, decimals)
-                tp2 = round(entry1 * 0.983, decimals)
-                tp3 = round(entry1 * 0.968, decimals)
-                tp4 = round(entry1 * 0.942, decimals)
-                sl = round(entry1 * (1 + 0.0325), decimals)  # وقف الخسارة 3.25%
+                # ✅ فحص صحة الأسعار قبل الإرسال (للـ SHORT)
+                if tp1 >= current_close:
+                    print(f"⚠️ Skipping {symbol}: TP1 ({tp1}) >= current price ({current_close})")
+                    continue
+                if sl <= current_close:
+                    print(f"⚠️ Skipping {symbol}: SL ({sl}) <= current price ({current_close})")
+                    continue
                 
-                send_crypto_signal(symbol, "SHORT", str(entry1), "15", str(tp1), str(tp2), str(tp3), str(tp4), str(sl))
+                s_entry = format_price(entry, decimals)
+                s_tp1 = format_price(tp1, decimals)
+                s_tp2 = format_price(tp2, decimals)
+                s_tp3 = format_price(tp3, decimals)
+                s_tp4 = format_price(tp4, decimals)
+                s_sl = format_price(sl, decimals)
+                
+                send_cornix_signal(symbol, "short", s_entry, "15", s_tp1, s_tp2, s_tp3, s_tp4, s_sl)
+                time.sleep(1)
+                send_pretty_signal(symbol, "short", s_entry, "15", s_tp1, s_tp2, s_tp3, s_tp4, s_sl)
                 time.sleep(2)
                 
         except Exception as e:
             print(f"Error analyzing {symbol}: {e}")
 
 if __name__ == "__main__":
-    print("Bot started successfully on GitHub Actions...")
+    print("Bot started...")
     analyze_and_trade()
-    print("Scan finished. Waiting for next GitHub trigger...")
+    print("Scan finished.")
