@@ -178,7 +178,7 @@ def analyze_and_trade():
                 print(f"🟢 BUY candidate: {symbol} @ {current_close} | RSI: {current_rsi:.1f}")
                 
                 entry = round(current_close, decimals)
-                tp1 = round(entry * 1.0065, decimals)
+                tp1 = round(entry * 1.009, decimals)
                 tp2 = round(entry * 1.017, decimals)
                 tp3 = round(entry * 1.032, decimals)
                 tp4 = round(entry * 1.058, decimals)
@@ -208,7 +208,7 @@ def analyze_and_trade():
                 print(f"🔴 SELL candidate: {symbol} @ {current_close} | RSI: {current_rsi:.1f}")
                 
                 entry = round(current_close, decimals)
-                tp1 = round(entry * 0.9935, decimals)
+                tp1 = round(entry * 0.991, decimals)
                 tp2 = round(entry * 0.983, decimals)
                 tp3 = round(entry * 0.968, decimals)
                 tp4 = round(entry * 0.942, decimals)
