@@ -62,10 +62,12 @@ def send_signal(coin_name, direction, entry, tp1, tp2, tp3, tp4, sl):
     
     text = f"""📝 NEW SIGNAL
 
-Exchanges: Binance Futures, ByBit USDT
-Signal Type: Regular ({direction_text})
-
 Pair: {coin_name}
+Signal Type: Regular ({direction_text})
+Leverage: 15x Cross
+Exchanges:
+Binance Futures, ByBit USDT
+
 Entry  : {entry} 
 
 Take Profit :
@@ -74,7 +76,7 @@ TP2: {tp2}
 TP3: {tp3}
 TP4: {tp4}
 
- SL: {sl}
+ Stop loss: {sl}
 
  • • • • • • • • • • • • • • • • • • • • •
 Crypto Hunter©
@@ -148,7 +150,6 @@ def analyze_and_trade():
                 print(f"🟢 BUY candidate: {symbol} @ {current_close} | RSI: {current_rsi:.1f}")
                 
                 entry = round(current_close, decimals)
-                # ✅ TP1 تم تعديله من 1.0065 إلى 1.009 (0.9%)
                 tp1 = round(entry * 1.009, decimals)
                 tp2 = round(entry * 1.017, decimals)
                 tp3 = round(entry * 1.032, decimals)
@@ -178,7 +179,6 @@ def analyze_and_trade():
                 print(f"🔴 SELL candidate: {symbol} @ {current_close} | RSI: {current_rsi:.1f}")
                 
                 entry = round(current_close, decimals)
-                # ✅ TP1 تم تعديله من 0.9935 إلى 0.991 (0.9%)
                 tp1 = round(entry * 0.991, decimals)
                 tp2 = round(entry * 0.983, decimals)
                 tp3 = round(entry * 0.968, decimals)
