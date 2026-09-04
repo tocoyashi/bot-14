@@ -56,7 +56,7 @@ def format_price(price, decimals):
     """التأكد من استخدام النقطة كفاصل عشري"""
     return str(round(price, decimals))
 
-def send_signal(coin_name, direction, entry, tp1, tp2, tp3, tp4, sl):
+def send_signal(coin_name, direction, entry, tp1, tp2, tp3, sl):
     """إرسال إشارة واحدة بتنسيق موحد"""
     direction_text = "Long" if direction.lower() == "long" else "Short"
     
@@ -64,7 +64,7 @@ def send_signal(coin_name, direction, entry, tp1, tp2, tp3, tp4, sl):
 
 Pair: {coin_name}
 Signal Type: Regular ({direction_text})
-Leverage: 15x Cross
+Leverage: 10x Cross
 Exchanges:
 Binance Futures, ByBit USDT
 
@@ -74,7 +74,6 @@ Take Profit :
 TP1: {tp1}
 TP2: {tp2}
 TP3: {tp3}
-TP4: {tp4}
 
  Stop loss: {sl}
 
@@ -151,9 +150,8 @@ def analyze_and_trade():
                 
                 entry = round(current_close, decimals)
                 tp1 = round(entry * 1.009, decimals)
-                tp2 = round(entry * 1.017, decimals)
-                tp3 = round(entry * 1.032, decimals)
-                tp4 = round(entry * 1.058, decimals)
+                tp2 = round(entry * 1.028, decimals)
+                tp3 = round(entry * 1.048, decimals)
                 sl = round(entry * (1 - 0.0325), decimals)
                 
                 # فحص صحة الأسعار قبل الإرسال
@@ -168,10 +166,9 @@ def analyze_and_trade():
                 s_tp1 = format_price(tp1, decimals)
                 s_tp2 = format_price(tp2, decimals)
                 s_tp3 = format_price(tp3, decimals)
-                s_tp4 = format_price(tp4, decimals)
                 s_sl = format_price(sl, decimals)
                 
-                send_signal(symbol, "long", s_entry, s_tp1, s_tp2, s_tp3, s_tp4, s_sl)
+                send_signal(symbol, "long", s_entry, s_tp1, s_tp2, s_tp3, s_sl)
                 time.sleep(2)
                 
             # حساب الأسعار للصفقات القصيرة (SHORT/SELL)
@@ -180,9 +177,8 @@ def analyze_and_trade():
                 
                 entry = round(current_close, decimals)
                 tp1 = round(entry * 0.991, decimals)
-                tp2 = round(entry * 0.983, decimals)
-                tp3 = round(entry * 0.968, decimals)
-                tp4 = round(entry * 0.942, decimals)
+                tp2 = round(entry * 0.972, decimals)
+                tp3 = round(entry * 0.952, decimals)
                 sl = round(entry * (1 + 0.0325), decimals)
                 
                 # فحص صحة الأسعار قبل الإرسال
@@ -197,10 +193,9 @@ def analyze_and_trade():
                 s_tp1 = format_price(tp1, decimals)
                 s_tp2 = format_price(tp2, decimals)
                 s_tp3 = format_price(tp3, decimals)
-                s_tp4 = format_price(tp4, decimals)
                 s_sl = format_price(sl, decimals)
                 
-                send_signal(symbol, "short", s_entry, s_tp1, s_tp2, s_tp3, s_tp4, s_sl)
+                send_signal(symbol, "short", s_entry, s_tp1, s_tp2, s_tp3, s_sl)
                 time.sleep(2)
                 
         except Exception as e:
