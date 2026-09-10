@@ -12,7 +12,7 @@ import random
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 CHANNEL_ID = os.environ.get("CHANNEL_ID")
 
-# ✅ قائمة بيضاء موسعة تضم 100 عملة فيوتشر موثوقة على MEXC
+# ✅ قائمة نظيفة ومحدثة بأسماء الأزواج المقبولة رسمياً على MEXC
 WHITELIST = [
     # Top Market Cap & Majors
     "BTC/USDT", "ETH/USDT", "BNB/USDT", "SOL/USDT", "XRP/USDT",
@@ -20,26 +20,25 @@ WHITELIST = [
     "TRX/USDT", "LTC/USDT", "BCH/USDT", "ETC/USDT", "XLM/USDT",
     # Layer 1 / Layer 2
     "NEAR/USDT", "APT/USDT", "SUI/USDT", "ARB/USDT", "OP/USDT",
-    "INJ/USDT", "SEI/USDT", "TIA/USDT", "STRK/USDT", "SUI/USDT",
-    "MATIC/USDT", "FTM/USDT", "ATOM/USDT", "ALGO/USDT", "EGLD/USDT",
-    "KAS/USDT", "RON/USDT", "MANTA/USDT", "METIS/USDT", "STX/USDT",
+    "INJ/USDT", "SEI/USDT", "TIA/USDT", "STRK/USDT", "POL/USDT",
+    "ATOM/USDT", "ALGO/USDT", "EGLD/USDT", "KAS/USDT", "RON/USDT",
+    "MANTA/USDT", "METIS/USDT", "STX/USDT",
     # AI & Big Data
-    "FET/USDT", "RENDER/USDT", "TAO/USDT", "NEAR/USDT", "AKT/USDT",
-    "OCEAN/USDT", "AGIX/USDT", "ARKM/USDT", "GRT/USDT", "THETA/USDT",
+    "FET/USDT", "RENDER/USDT", "TAO/USDT", "ARKM/USDT", "GRT/USDT",
     # Meme Coins & High Volatility
     "PEPE/USDT", "WIF/USDT", "SHIB/USDT", "FLOKI/USDT", "BONK/USDT",
     "BOME/USDT", "MEME/USDT", "MYRO/USDT", "POPCAT/USDT", "TURBO/USDT",
-    "NEIRO/USDT", "BRETT/USDT", "CATI/USDT", "1000SATS/USDT", "ORDI/USDT",
+    "CATI/USDT", "ORDI/USDT",
     # DeFi & Infrastructure
-    "UNI/USDT", "AAVE/USDT", "PENDLE/USDT", "ENA/USDT", "MKR/USDT",
-    "CRV/USDT", "SNX/USDT", "DYDX/USDT", "JUP/USDT", "RUNE/USDT",
-    "LDO/USDT", "RPL/USDT", "PYTH/USDT", "COMP/USDT", "1INCH/USDT",
+    "UNI/USDT", "AAVE/USDT", "PENDLE/USDT", "ENA/USDT", "CRV/USDT",
+    "SNX/USDT", "DYDX/USDT", "JUP/USDT", "RUNE/USDT", "LDO/USDT",
+    "RPL/USDT", "PYTH/USDT", "COMP/USDT", "1INCH/USDT",
     # Gaming & Metaverse
     "GALA/USDT", "SAND/USDT", "MANA/USDT", "AXS/USDT", "BEAM/USDT",
     "ILV/USDT", "ENJ/USDT", "PIXEL/USDT", "YGG/USDT", "ALICE/USDT",
     # Trending / Ecosystems
     "W/USDT", "NOT/USDT", "IO/USDT", "ZRO/USDT", "ZK/USDT",
-    "TON/USDT", "FIL/USDT", "QNT/USDT", "ICP/USDT", "FLOW/USDT"
+    "FIL/USDT", "QNT/USDT", "ICP/USDT", "FLOW/USDT"
 ]
 
 LEVERAGE = "5x"
