@@ -12,16 +12,34 @@ import random
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 CHANNEL_ID = os.environ.get("CHANNEL_ID")
 
-# ✅ قائمة بيضاء بأزواج Futures الموثوقة فقط
+# ✅ قائمة بيضاء موسعة تضم 100 عملة فيوتشر موثوقة على MEXC
 WHITELIST = [
+    # Top Market Cap & Majors
     "BTC/USDT", "ETH/USDT", "BNB/USDT", "SOL/USDT", "XRP/USDT",
     "ADA/USDT", "DOGE/USDT", "AVAX/USDT", "DOT/USDT", "LINK/USDT",
-    "TRX/USDT", "LTC/USDT", "UNI/USDT", "ATOM/USDT", "XLM/USDT",
+    "TRX/USDT", "LTC/USDT", "BCH/USDT", "ETC/USDT", "XLM/USDT",
+    # Layer 1 / Layer 2
     "NEAR/USDT", "APT/USDT", "SUI/USDT", "ARB/USDT", "OP/USDT",
-    "INJ/USDT", "FIL/USDT", "AAVE/USDT", "QNT/USDT", "FET/USDT",
-    "RENDER/USDT", "TIA/USDT", "SEI/USDT", "PYTH/USDT", "STRK/USDT",
-    "WLD/USDT", "ENA/USDT", "WIF/USDT", "BONK/USDT", "PEPE/USDT",
-    "SHIB/USDT", "FLOKI/USDT", "BOME/USDT", "W/USDT", "JUP/USDT"
+    "INJ/USDT", "SEI/USDT", "TIA/USDT", "STRK/USDT", "SUI/USDT",
+    "MATIC/USDT", "FTM/USDT", "ATOM/USDT", "ALGO/USDT", "EGLD/USDT",
+    "KAS/USDT", "RON/USDT", "MANTA/USDT", "METIS/USDT", "STX/USDT",
+    # AI & Big Data
+    "FET/USDT", "RENDER/USDT", "TAO/USDT", "NEAR/USDT", "AKT/USDT",
+    "OCEAN/USDT", "AGIX/USDT", "ARKM/USDT", "GRT/USDT", "THETA/USDT",
+    # Meme Coins & High Volatility
+    "PEPE/USDT", "WIF/USDT", "SHIB/USDT", "FLOKI/USDT", "BONK/USDT",
+    "BOME/USDT", "MEME/USDT", "MYRO/USDT", "POPCAT/USDT", "TURBO/USDT",
+    "NEIRO/USDT", "BRETT/USDT", "CATI/USDT", "1000SATS/USDT", "ORDI/USDT",
+    # DeFi & Infrastructure
+    "UNI/USDT", "AAVE/USDT", "PENDLE/USDT", "ENA/USDT", "MKR/USDT",
+    "CRV/USDT", "SNX/USDT", "DYDX/USDT", "JUP/USDT", "RUNE/USDT",
+    "LDO/USDT", "RPL/USDT", "PYTH/USDT", "COMP/USDT", "1INCH/USDT",
+    # Gaming & Metaverse
+    "GALA/USDT", "SAND/USDT", "MANA/USDT", "AXS/USDT", "BEAM/USDT",
+    "ILV/USDT", "ENJ/USDT", "PIXEL/USDT", "YGG/USDT", "ALICE/USDT",
+    # Trending / Ecosystems
+    "W/USDT", "NOT/USDT", "IO/USDT", "ZRO/USDT", "ZK/USDT",
+    "TON/USDT", "FIL/USDT", "QNT/USDT", "ICP/USDT", "FLOW/USDT"
 ]
 
 LEVERAGE = "5x"
@@ -48,7 +66,6 @@ def generate_summary(direction, strategy, df):
         levels_txt = random.choice(["Risk is managed safely above the invalidation level; expecting an aggressive drop towards the lower targets.", "Invalidation point is clearly defined; expecting a heavy breakdown to hit the projected extension levels."])
     return f"{structure_txt} {action_txt} {rsi_txt} {levels_txt}"
 
-# ✅ تم تحديث التنسيق ليكون مطابقاً للنموذج المطلوب
 def send_crypto_signal(coin_name, direction, strategy, entry, tp1, tp2, sl, summary_text):
     direction_text = "LONG" if direction.lower() == "long" else "SHORT"
     clean_name = coin_name.replace("/", "")
@@ -79,7 +96,7 @@ L E A K E D  B Y:  @BULLS_SIGNALS"""
         print(f"Network error: {e}")
 
 def analyze_and_trade():
-    print("Starting HIGH CONFIDENCE Dual-TF Scan (15m + 60m)...")
+    print(f"Starting Scan across {len(WHITELIST)} coins (15m + 60m)...")
     exchange = ccxt.mexc()
     for symbol in WHITELIST:
         try:
