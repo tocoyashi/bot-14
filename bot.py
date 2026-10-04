@@ -23,8 +23,6 @@ SYMBOLS = [
     "AAVE/USDT", "GRT/USDT", "PEPE/USDT", "QNT/USDT", "FET/USDT"
 ]
 
-DEFAULT_IMAGE = "https://t.me/PYTHON_SIGNALS_BS/38"
-
 def get_decimals(price):
     if price > 100:
         return 2
@@ -35,7 +33,7 @@ def get_decimals(price):
     else:
         return 8
 
-def send_crypto_signal(coin_name, direction, entry, leverage, tp1, tp2, sl, image_url):
+def send_crypto_signal(coin_name, direction, entry, leverage, tp1, tp2, sl):
     direction_text = "LONG" if direction.lower() == "long" else "SHORT"
 
     text = (
@@ -53,11 +51,10 @@ def send_crypto_signal(coin_name, direction, entry, leverage, tp1, tp2, sl, imag
         f"www.weex.com/register?vipCode=0s0t4s"
     )
 
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendAnimation"
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
     payload = {
         "chat_id": CHANNEL_ID,
-        "animation": image_url,
-        "caption": text,
+        "text": text,
         "parse_mode": "HTML"
     }
     try:
@@ -70,7 +67,7 @@ def send_crypto_signal(coin_name, direction, entry, leverage, tp1, tp2, sl, imag
         print(f"Network error: {e}")
 
 def analyze_and_trade():
-    print("Starting scan (15m) with EMA + MACD strategies...")
+    print("Starting scan (30m) with EMA + MACD strategies...")
     exchange = ccxt.mexc()
 
     for symbol in SYMBOLS:
@@ -105,7 +102,7 @@ def analyze_and_trade():
                 tp1 = round(entry * 1.0065, decimals)
                 tp2 = round(entry * 1.02, decimals)
                 sl = round(entry * 0.98, decimals)
-                send_crypto_signal(symbol, "LONG", str(entry), "10", str(tp1), str(tp2), str(sl), DEFAULT_IMAGE)
+                send_crypto_signal(symbol, "LONG", str(entry), "10", str(tp1), str(tp2), str(sl))
                 time.sleep(2)
 
             elif ema_sell or macd_sell:
@@ -114,7 +111,7 @@ def analyze_and_trade():
                 tp1 = round(entry * 0.9935, decimals)
                 tp2 = round(entry * 0.98, decimals)
                 sl = round(entry * 1.02, decimals)
-                send_crypto_signal(symbol, "SHORT", str(entry), "10", str(tp1), str(tp2), str(sl), DEFAULT_IMAGE)
+                send_crypto_signal(symbol, "SHORT", str(entry), "10", str(tp1), str(tp2), str(sl))
                 time.sleep(2)
             else:
                 print(f"No signal for {symbol} currently.")
