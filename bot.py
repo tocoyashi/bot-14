@@ -7,170 +7,121 @@ import pandas as pd
 import ta
 import requests
 import time
-import random
+from datetime import datetime
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 CHANNEL_ID = os.environ.get("CHANNEL_ID")
 
-# ✅ قائمة نظيفة ومحدثة بأسماء الأزواج المقبولة رسمياً على MEXC
-WHITELIST = [
-    # Top Market Cap & Majors
+TIMEFRAME = "30m"
+
+SYMBOLS = [
     "BTC/USDT", "ETH/USDT", "BNB/USDT", "SOL/USDT", "XRP/USDT",
     "ADA/USDT", "DOGE/USDT", "AVAX/USDT", "DOT/USDT", "LINK/USDT",
-    "TRX/USDT", "LTC/USDT", "BCH/USDT", "ETC/USDT", "XLM/USDT",
-    # Layer 1 / Layer 2
-    "NEAR/USDT", "APT/USDT", "SUI/USDT", "ARB/USDT", "OP/USDT",
-    "INJ/USDT", "SEI/USDT", "TIA/USDT", "STRK/USDT", "POL/USDT",
-    "ATOM/USDT", "ALGO/USDT", "EGLD/USDT", "KAS/USDT", "RON/USDT",
-    "MANTA/USDT", "METIS/USDT", "STX/USDT",
-    # AI & Big Data
-    "FET/USDT", "RENDER/USDT", "TAO/USDT", "ARKM/USDT", "GRT/USDT",
-    # Meme Coins & High Volatility
-    "PEPE/USDT", "WIF/USDT", "SHIB/USDT", "FLOKI/USDT", "BONK/USDT",
-    "BOME/USDT", "MEME/USDT", "MYRO/USDT", "POPCAT/USDT", "TURBO/USDT",
-    "CATI/USDT", "ORDI/USDT",
-    # DeFi & Infrastructure
-    "UNI/USDT", "AAVE/USDT", "PENDLE/USDT", "ENA/USDT", "CRV/USDT",
-    "SNX/USDT", "DYDX/USDT", "JUP/USDT", "RUNE/USDT", "LDO/USDT",
-    "RPL/USDT", "PYTH/USDT", "COMP/USDT", "1INCH/USDT",
-    # Gaming & Metaverse
-    "GALA/USDT", "SAND/USDT", "MANA/USDT", "AXS/USDT", "BEAM/USDT",
-    "ILV/USDT", "ENJ/USDT", "PIXEL/USDT", "YGG/USDT", "ALICE/USDT",
-    # Trending / Ecosystems
-    "W/USDT", "NOT/USDT", "IO/USDT", "ZRO/USDT", "ZK/USDT",
-    "FIL/USDT", "QNT/USDT", "ICP/USDT", "FLOW/USDT"
+    "TRX/USDT", "POL/USDT", "SHIB/USDT", "LTC/USDT", "UNI/USDT",
+    "ATOM/USDT", "XLM/USDT", "NEAR/USDT", "APT/USDT", "SUI/USDT",
+    "ARB/USDT", "OP/USDT", "INJ/USDT", "TIA/USDT", "FIL/USDT",
+    "AAVE/USDT", "GRT/USDT", "PEPE/USDT", "QNT/USDT", "FET/USDT"
 ]
 
-LEVERAGE = "5x"
+DEFAULT_IMAGE = "https://t.me/PYTHON_SIGNALS_BS/38"
 
 def get_decimals(price):
-    if price > 100: return 2
-    elif price > 1: return 3
-    elif price > 0.01: return 5
-    else: return 8
-
-def generate_summary(direction, strategy, df):
-    rsi_val = round(df['rsi'].iloc[-1], 1)
-    if direction == "LONG":
-        structure_txt = random.choice(["Multi-timeframe alignment shows strong buying pressure and structural support.", "A massive bullish consensus across multiple timeframes confirms a high-probability upward move.", "The 15m and 60m charts confirm a synchronized bullish breakout scenario."])
-        action_txt = random.choice(["Institutional footprint detected as both timeframes rejected lower prices simultaneously.", "Aggressive accumulation is visible as dynamic support levels hold firmly on both scales.", "Smart money positioning is clearly bullish based on cross-timeframe momentum shifts."])
-        if rsi_val < 65: rsi_txt = random.choice([f"RSI at {rsi_val} confirms healthy momentum with plenty of room before overbought levels.", f"Momentum reads {rsi_val}, supporting a sustained move higher without exhaustion."])
-        else: rsi_txt = random.choice([f"RSI is strong at {rsi_val}, showing extreme bullish power and heavy buyer dominance.", f"Momentum indicator reads {rsi_val}, riding a massive wave of buying pressure."])
-        levels_txt = random.choice(["Invalidation point is clearly defined; expecting a strong breakout to hit the projected extension levels.", "Risk is managed safely below the invalidation level; expecting an aggressive push towards the upper targets."])
+    if price > 100:
+        return 2
+    elif price > 1:
+        return 3
+    elif price > 0.01:
+        return 5
     else:
-        structure_txt = random.choice(["A massive bearish consensus across multiple timeframes confirms a high-probability downward move.", "Multi-timeframe alignment shows strong selling pressure and structural resistance.", "The 15m and 60m charts confirm a synchronized bearish breakdown scenario."])
-        action_txt = random.choice(["Institutional footprint detected as both timeframes rejected higher prices simultaneously.", "Aggressive distribution is visible as dynamic resistance levels hold firmly on both scales.", "Smart money positioning is clearly bearish based on cross-timeframe momentum shifts."])
-        if rsi_val > 35: rsi_txt = random.choice([f"RSI at {rsi_val} confirms healthy downward momentum with plenty of room before oversold levels.", f"Momentum reads {rsi_val}, supporting a sustained move lower without exhaustion."])
-        else: rsi_txt = random.choice([f"RSI is weak at {rsi_val}, showing extreme bearish power and heavy seller dominance.", f"Momentum indicator reads {rsi_val}, riding a massive wave of selling pressure."])
-        levels_txt = random.choice(["Risk is managed safely above the invalidation level; expecting an aggressive drop towards the lower targets.", "Invalidation point is clearly defined; expecting a heavy breakdown to hit the projected extension levels."])
-    return f"{structure_txt} {action_txt} {rsi_txt} {levels_txt}"
+        return 8
 
-def send_crypto_signal(coin_name, direction, strategy, entry, tp1, tp2, sl, summary_text):
+def send_crypto_signal(coin_name, direction, entry, leverage, tp1, tp2, sl, image_url):
     direction_text = "LONG" if direction.lower() == "long" else "SHORT"
-    clean_name = coin_name.replace("/", "")
-    
-    text = f"""📡  SIGNAL DETECTED
 
-COIN: #{clean_name}
-Leverage : {LEVERAGE}
-Direction: {direction_text} | Multi-timeframe
+    text = (
+        f"<b>New Call on: Weex Platform</b>\n"
+        f"<i>Time: {datetime.now().strftime('%Y-%m-%d %H:%M')}</i>\n"
+        f"<b>Trade:</b> <code>{coin_name}</code>\n\n"
+        f"<b>Direction:</b> <code>{direction_text}</code>\n"
+        f"<b>Entry:</b> <code>{entry}</code>\n"
+        f"<b>Leverage:</b> <code>{leverage}x</code>\n\n"
+        f"<b>Target 1 (TP1):</b> <code>{tp1}</code>\n"
+        f"<b>Target 2 (TP2):</b> <code>{tp2}</code>\n\n"
+        f"<b>Stop Loss (SL):</b> <code>{sl}</code>\n"
+        f"-----------\n"
+        f"Trade on Weex - Win 10k 🔥\n"
+        f"www.weex.com/register?vipCode=0s0t4s"
+    )
 
-ENTRY: {entry}
-TARGETS: {tp1} - {tp2}
-STOP LOSS: {sl}
-
-✅{summary_text}
-➖➖➖➖➖➖➖
-L E A K E D  B Y:  @BULLS_SIGNALS"""
-    
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-    payload = {"chat_id": CHANNEL_ID, "text": text, "disable_web_page_preview": True}
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendAnimation"
+    payload = {
+        "chat_id": CHANNEL_ID,
+        "animation": image_url,
+        "caption": text,
+        "parse_mode": "HTML"
+    }
     try:
         response = requests.post(url, json=payload)
-        if response.json().get('ok'): 
+        if response.json().get('ok'):
             print(f"Signal sent for {coin_name}")
-        else: 
-            print(f"ERROR for {coin_name}: {response.json().get('description')}")
-    except Exception as e: 
+        else:
+            print(f"TELEGRAM ERROR for {coin_name}: {response.json().get('description')}")
+    except Exception as e:
         print(f"Network error: {e}")
 
 def analyze_and_trade():
-    print(f"Starting Scan across {len(WHITELIST)} coins (15m + 60m)...")
+    print("Starting scan (15m) with EMA + MACD strategies...")
     exchange = ccxt.mexc()
-    for symbol in WHITELIST:
+
+    for symbol in SYMBOLS:
         try:
-            df_15m = pd.DataFrame(exchange.fetch_ohlcv(symbol, "15m", limit=100), columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
-            df_60m = pd.DataFrame(exchange.fetch_ohlcv(symbol, "1h", limit=100), columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
-            current_close = df_15m['close'].iloc[-1]
+            ohlcv = exchange.fetch_ohlcv(symbol, TIMEFRAME, limit=100)
+            df = pd.DataFrame(ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+
+            df['ema_9'] = df['close'].ewm(span=9, adjust=False).mean()
+            df['ema_21'] = df['close'].ewm(span=21, adjust=False).mean()
+
+            curr_ema9 = df['ema_9'].iloc[-1]
+            curr_ema21 = df['ema_21'].iloc[-1]
+            prev_ema9 = df['ema_9'].iloc[-2]
+            prev_ema21 = df['ema_21'].iloc[-2]
+
+            ema_buy = (prev_ema9 < prev_ema21) and (curr_ema9 > curr_ema21)
+            ema_sell = (prev_ema9 > prev_ema21) and (curr_ema9 < curr_ema21)
+
+            macd_hist = ta.trend.macd_diff(df['close'])
+            curr_macd = macd_hist.iloc[-1]
+            prev_macd = macd_hist.iloc[-2]
+
+            macd_buy = (prev_macd < 0) and (curr_macd > 0)
+            macd_sell = (prev_macd > 0) and (curr_macd < 0)
+
+            current_close = df['close'].iloc[-1]
             decimals = get_decimals(current_close)
-            
-            df_15m['ema_9'] = df_15m['close'].ewm(span=9, adjust=False).mean()
-            df_15m['ema_21'] = df_15m['close'].ewm(span=21, adjust=False).mean()
-            df_60m['ema_9'] = df_60m['close'].ewm(span=9, adjust=False).mean()
-            df_60m['ema_21'] = df_60m['close'].ewm(span=21, adjust=False).mean()
-            
-            macd_hist_15m = ta.trend.macd_diff(df_15m['close'])
-            curr_macd_15m = macd_hist_15m.iloc[-1]
-            prev_macd_15m = macd_hist_15m.iloc[-2]
-            macd_hist_60m = ta.trend.macd_diff(df_60m['close'])
-            curr_macd_60m = macd_hist_60m.iloc[-1]
-            prev_macd_60m = macd_hist_60m.iloc[-2]
-            df_15m['rsi'] = ta.momentum.rsi(df_15m['close'], window=14)
 
-            ema_buy_15m = (df_15m['ema_9'].iloc[-2] < df_15m['ema_21'].iloc[-2]) and (df_15m['ema_9'].iloc[-1] > df_15m['ema_21'].iloc[-1])
-            ema_sell_15m = (df_15m['ema_9'].iloc[-2] > df_15m['ema_21'].iloc[-2]) and (df_15m['ema_9'].iloc[-1] < df_15m['ema_21'].iloc[-1])
-            ema_buy_60m = (df_60m['ema_9'].iloc[-2] < df_60m['ema_21'].iloc[-2]) and (df_60m['ema_9'].iloc[-1] > df_60m['ema_21'].iloc[-1])
-            ema_sell_60m = (df_60m['ema_9'].iloc[-2] > df_60m['ema_21'].iloc[-2]) and (df_60m['ema_9'].iloc[-1] < df_60m['ema_21'].iloc[-1])
-            
-            macd_buy_15m = (prev_macd_15m < 0) and (curr_macd_15m > 0)
-            macd_sell_15m = (prev_macd_15m > 0) and (curr_macd_15m < 0)
-            macd_buy_60m = (prev_macd_60m < 0) and (curr_macd_60m > 0)
-            macd_sell_60m = (prev_macd_60m > 0) and (curr_macd_60m < 0)
+            if ema_buy or macd_buy:
+                print(f"BUY SIGNAL on {symbol}!")
+                entry = round(current_close, decimals)
+                tp1 = round(entry * 1.0065, decimals)
+                tp2 = round(entry * 1.02, decimals)
+                sl = round(entry * 0.98, decimals)
+                send_crypto_signal(symbol, "LONG", str(entry), "10", str(tp1), str(tp2), str(sl), DEFAULT_IMAGE)
+                time.sleep(2)
 
-            entry = round(current_close, decimals)
-
-            # LONG: SL = -3.00% | TP1 = +1.10% | TP2 = +4.00%
-            long_sl = round(entry * 0.97, decimals)
-            long_tp1 = round(entry * 1.0110, decimals)
-            long_tp2 = round(entry * 1.0400, decimals)
-
-            # SHORT: SL = +3.00% | TP1 = -1.10% | TP2 = -4.00%
-            short_sl = round(entry * 1.03, decimals)
-            short_tp1 = round(entry * 0.9890, decimals)
-            short_tp2 = round(entry * 0.9600, decimals)
-
-            if (ema_buy_15m and ema_buy_60m):
-                if long_sl >= entry or long_tp1 <= entry: continue
-                print(f"🟢 DUAL EMA BUY on {symbol}!")
-                summary = generate_summary("LONG", "Dual-TF", df_15m)
-                send_crypto_signal(symbol, "LONG", "Dual-TF", entry, long_tp1, long_tp2, long_sl, summary)
-                time.sleep(6)
-                
-            elif (ema_sell_15m and ema_sell_60m):
-                if short_sl <= entry or short_tp1 >= entry: continue
-                print(f"🔴 DUAL EMA SELL on {symbol}!")
-                summary = generate_summary("SHORT", "Dual-TF", df_15m)
-                send_crypto_signal(symbol, "SHORT", "Dual-TF", entry, short_tp1, short_tp2, short_sl, summary)
-                time.sleep(6)
-                
-            elif (macd_buy_15m and macd_buy_60m):
-                if long_sl >= entry or long_tp1 <= entry: continue
-                print(f"🟢 DUAL MACD BUY on {symbol}!")
-                summary = generate_summary("LONG", "Dual-TF", df_15m)
-                send_crypto_signal(symbol, "LONG", "Dual-TF", entry, long_tp1, long_tp2, long_sl, summary)
-                time.sleep(6)
-                
-            elif (macd_sell_15m and macd_sell_60m):
-                if short_sl <= entry or short_tp1 >= entry: continue
-                print(f"🔴 DUAL MACD SELL on {symbol}!")
-                summary = generate_summary("SHORT", "Dual-TF", df_15m)
-                send_crypto_signal(symbol, "SHORT", "Dual-TF", entry, short_tp1, short_tp2, short_sl, summary)
-                time.sleep(6)
+            elif ema_sell or macd_sell:
+                print(f"SELL SIGNAL on {symbol}!")
+                entry = round(current_close, decimals)
+                tp1 = round(entry * 0.9935, decimals)
+                tp2 = round(entry * 0.98, decimals)
+                sl = round(entry * 1.02, decimals)
+                send_crypto_signal(symbol, "SHORT", str(entry), "10", str(tp1), str(tp2), str(sl), DEFAULT_IMAGE)
+                time.sleep(2)
             else:
-                print(f"⚪ No dual-TF alignment for {symbol}.")
+                print(f"No signal for {symbol} currently.")
+
         except Exception as e:
-            print(f"Error {symbol}: {e}")
+            print(f"Error analyzing {symbol}: {e}")
 
 if __name__ == "__main__":
-    print("Custom Dual Timeframe Bot started...")
+    print("Bot started successfully...")
     analyze_and_trade()
