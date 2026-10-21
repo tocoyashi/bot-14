@@ -318,7 +318,7 @@ def build_message(signal):
         f"TP{i+1} - {_fmt(tp)}" for i, tp in enumerate(signal['tps'])
     )
 
-    msg = f"""New Algo Signals 🦋
+    msg = f"""New Algo Signal 🦋
 
 Pairs : {pair} 
 Position: {direction}
