@@ -318,8 +318,9 @@ def build_message(signal):
         f"TP{i+1} - {_fmt(tp)}" for i, tp in enumerate(signal['tps'])
     )
 
-    msg = f"""{pair} 🚀
+    msg = f"""New Algo Signals 🦋
 
+Pairs : {pair} 
 Position: {direction}
 Leverage: Cross {LEVERAGE}x 
 Entry: {_fmt(signal['entry1'])}  -  {_fmt(signal['entry2'])}
@@ -328,9 +329,9 @@ SL: {_fmt(signal['sl'])}
 
 Targets
 {tp_lines}
-
+-----------
 Trade on Weex - Win up to 10k 🔥
-www.weex.com/register?vipCode=0s0t4s"""
+https://www.weex.com/register?vipCode=0s0t4s"""
 
     return msg
 
