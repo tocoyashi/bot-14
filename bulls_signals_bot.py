@@ -25,8 +25,8 @@ LEVERAGE = 12
 # ✅ وقف خسارة ثابت 6%
 SL_PERCENT = 6.0
 
-# Targets (8 levels) — من 0.85% إلى 10% بفاصل ثابت 1.307%
-TP_PERCENTAGES = [0.85, 2.157143, 3.464286, 4.771429, 6.078571, 7.385714, 8.692857, 10.0]
+# Targets (8 levels) — من 0.85% إلى 12%
+TP_PERCENTAGES = [0.85, 3.157, 4.464, 5.771, 7.079, 8.386, 9.693, 12.0]
 
 # Risk / Entries
 ENTRY2_ATR_MULT = 0.5
@@ -318,7 +318,7 @@ def build_message(signal):
         f"TP{i+1} - {_fmt(tp)}" for i, tp in enumerate(signal['tps'])
     )
 
-    msg = f"""New Algo Signal 🦋
+    msg = f"""New Algo Signals 🦋
 
 Pairs : {pair} 
 Position: {direction}
